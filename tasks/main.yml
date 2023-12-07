@@ -1,0 +1,103 @@
+---
+    - name: Get vector package | CentOS
+      ansible.builtin.get_url:
+        url: https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-1.x86_64.rpm
+        dest: ./vector-{{ vector_version }}-1.x86_64.rpm
+      when: ansible_facts.distribution == "CentOS"
+
+    - name: Get Vector package | Ubuntu
+      ansible.builtin.get_url:
+        url: "https://packages.timber.io/vector/{{ vector_version }}/vector_{{ vector_version }}-1_amd64.deb"
+        dest: "./vector_{{ vector_version }}_amd64.deb"
+      when: ansible_facts.distribution == "Ubuntu"
+    
+    - name: Install vector package | CentOS
+      become: true
+      ansible.builtin.yum:
+        name: vector-{{ vector_version }}-1.x86_64.rpm
+        state: present
+      when: ansible_facts.distribution == "CentOS"
+
+    - name: Install vector package | Ubuntu
+      become: true
+      ansible.builtin.apt:
+        deb: vector_{{ vector_version }}_amd64.deb
+        state: present
+      when: ansible_facts.distribution == "Ubuntu"
+
+    - name: Vector config file
+      become: true
+      ansible.builtin.template:
+        src: vector.yml.j2
+        dest: /etc/vector/vector.yaml
+        mode: "0755"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+
+    - name: Vector systemd service file | CentOS
+      become: true
+      ansible.builtin.template:
+        src: vector.service.j2
+        dest: /usr/lib/systemd/system/vector.service
+        mode: "0755"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+        backup: true
+      when: ansible_facts.distribution == "CentOS"
+
+    - name: Vector systemd service file | Ubuntu
+      become: true
+      ansible.builtin.template:
+        src: vector.service.j2
+        dest: /lib/systemd/system/vector.service
+        mode: "0755"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+        backup: true
+      when: ansible_facts.distribution == "Ubuntu"
+
+    - name: Add epel-release repo | CentOS
+      become: true
+      yum:
+        name: epel-release
+        state: present
+      when: ansible_facts.distribution == "CentOS"
+
+    - name: Install nginx | CentOS
+      become: true
+      yum:
+        name: nginx
+        state: present
+      when: ansible_facts.distribution == "CentOS"
+
+    - name: Install nginx | Ubuntu
+      become: true
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+      when: ansible_facts.distribution == "Ubuntu"
+
+    - name: Create nginx config
+      become: true
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: 0755
+        backup: true
+
+    - name: Start NGiNX
+      become: true
+      service:
+        name: nginx
+        enabled: true
+        state: started
+      when: ansible_facts.virtualization_type != "docker"
+
+    - name: Start Vector service
+      become: true
+      systemd:
+        name: vector
+        enabled: true
+        state: started
+      when: ansible_facts.virtualization_type != "docker"
